@@ -79,5 +79,6 @@ class PaliGemma(DetectionBaseModel):
         response = self.model.predict(image, prompt)[0]
 
         detections = from_pali_gemma(response, image.size, self.ontology.classes)
+        detections = detections[detections.confidence > confidence]
 
         return detections
