@@ -57,18 +57,15 @@ base_model.label("./context_images", extension=".jpeg")
 ### Model fine-tuning (Coming soon)
 
 ```python
-from autodistill_paligemma import PaLiGemma
+from autodistill_paligemma import PaLiGemmaTrainer
 
-target_model = PaLiGemma()
+target_model = PaLiGemmaTrainer()
 
 # train a model
-target_model.train("./context_images_labeled/data.yaml", epochs=200)
-
-# run inference on the new model
-pred = target_model.predict("./context_images_labeled/train/images/dog-7.jpg", conf=0.01)
-
-print(pred)
+target_model.train("./data/", epochs=200)
 ```
+
+Note: You cannot yet used fine-tuned models with Autodistill. This feature is coming soon.
 
 
 ## License

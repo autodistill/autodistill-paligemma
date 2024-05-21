@@ -16,12 +16,19 @@ setuptools.setup(
     version=version,
     author="Roboflow",
     author_email="support@roboflow.com",
-    description="Fine-tune a PaLiGemma model using custom data with Autodistill",
+    description="Auto-label data with a PaliGemma model, or ine-tune a PaLiGemma model using custom data with Autodistill.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="",
+    url="https://github.com/autodistill/autodistill-paligemma",
     install_requires=[
-        # list your requires
+        "inference",
+        "supervision",
+        "numpy",
+        "torch"
+        "overrides",
+        "ml_collections",
+        "einops~=0.7",
+        "sentencepiece"
     ],
     packages=find_packages(exclude=("tests",)),
     extras_require={
