@@ -21,7 +21,7 @@ from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
 import os
 import os
 from PIL import Image
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 import random
 import shutil
 import json
@@ -76,7 +76,8 @@ class PaliGemma(DetectionBaseModel):
 @dataclass
 class PaliGemmaTrainer(DetectionTargetModel):
     def __init__(self, model_id = "google/paligemma-3b-pt-224"):
-        device = "cuda:0"
+        device = DEVICE
+        print(device)
         cache_dir = "./paligemma"
 
         if not os.environ.get("HF_ACCESS_TOKEN"):
@@ -104,7 +105,7 @@ class PaliGemmaTrainer(DetectionTargetModel):
     def train(self, dataset):
         def collate_fn(examples):
             images = [
-                Image.open(f"{dataset.location}/dataset/{example['image']}").convert("RGB")
+                Image.open(f"{dataset}/dataset/{example['image']}").convert("RGB")
                 for example in examples
             ]
             tokens = self.processor(
