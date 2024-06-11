@@ -54,7 +54,11 @@ print(result)
 base_model.label("./context_images", extension=".jpeg")
 ```
 
-### Model fine-tuning (Coming soon)
+### Model fine-tuning
+
+You can fine-tune PaliGemma models with LoRA for deployment with [Roboflow Inference](https://inference.roboflow.com).
+
+To train a model, use this code:
 
 ```python
 from autodistill_paligemma import PaLiGemmaTrainer
@@ -62,11 +66,8 @@ from autodistill_paligemma import PaLiGemmaTrainer
 target_model = PaLiGemmaTrainer()
 
 # train a model
-target_model.train("./data/", epochs=200)
+target_model.train("./data/")
 ```
-
-Note: You cannot yet used fine-tuned models with Autodistill. This feature is coming soon.
-
 
 ## License
 
