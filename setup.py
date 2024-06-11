@@ -24,11 +24,14 @@ setuptools.setup(
         "inference",
         "supervision",
         "numpy",
-        "torch"
-        "overrides",
-        "ml_collections",
-        "einops~=0.7",
-        "sentencepiece"
+        "torch",
+        "transformers",
+        "peft",
+        "accelerate",
+        "sentencepiece",
+        "roboflow",
+        "autodistill",
+        "Pillow"
     ],
     packages=find_packages(exclude=("tests",)),
     extras_require={
