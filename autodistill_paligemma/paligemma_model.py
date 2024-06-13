@@ -1,44 +1,35 @@
-import base64
-import functools
-import html
-import io
 import os
-import re
-import subprocess
-import warnings
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 import json
 from PIL import Image
 import supervision as sv
 import torch
-from autodistill.detection import (CaptionOntology, DetectionBaseModel,
-                                   DetectionTargetModel)
+from autodistill.detection import (
+    CaptionOntology,
+    DetectionBaseModel,
+    DetectionTargetModel,
+)
 from autodistill.helpers import load_image
 from torch.utils.data import Dataset
 import random
+from inference.models.paligemma.paligemma import LoRAPaliGemma
+from inference.models.paligemma.paligemma import PaliGemma as InferencePaliGemma
 from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
-import os
-import os
 from PIL import Image
 from tqdm import tqdm
 import random
-import shutil
 import json
-import shutil
-import numpy as np
-import supervision as sv
-from typing import List, Dict, Optional
 from peft import LoraConfig, get_peft_model
 from torch import optim
 
 HOME = os.path.expanduser("~")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class Data(Dataset):
     def __init__(self, jsonl_location):
         with open(jsonl_location, "r") as json_file:
-          json_list = list(json_file)
+            json_list = list(json_file)
 
         jsons = [json.loads(json_str) for json_str in json_list]
         random.shuffle(jsons)
@@ -53,12 +44,26 @@ class Data(Dataset):
     def shuffle(self):
         random.shuffle(self.jsons)
 
+
 @dataclass
 class PaliGemma(DetectionBaseModel):
     ontology: CaptionOntology
 
-    def __init__(self, ontology: CaptionOntology):
-        self.model = PaliGemma()
+    def __init__(
+        self,
+        ontology: CaptionOntology,
+        model_id: str = "paligemma-3b-mix-224",
+        lora_model: bool = False,
+    ):
+        if lora_model:
+            self.model = LoRAPaliGemma(
+                model_id,
+                huggingface_token=os.environ.get("HF_ACCESS_TOKEN"),
+                api_key=os.environ.get("ROBOFLOW_API_KEY"),
+            )
+        else:
+            self.model = InferencePaliGemma(model_id)
+
         self.ontology = ontology
 
     def predict(self, input: str, confidence: int = 0.5) -> sv.Detections:
@@ -66,16 +71,19 @@ class PaliGemma(DetectionBaseModel):
 
         prompt = f"detect " + ";".join(self.ontology.classes)
 
-        response = self.model.predict(image, prompt)[0]
+        response = self.model.infer(image, prompt=prompt)[0]
 
-        detections = sv.from_lmm("paligemma", response, image.size, self.ontology.classes)
+        detections = sv.from_lmm(
+            "paligemma", response, image.size, self.ontology.classes
+        )
         detections = detections[detections.confidence > confidence]
 
         return detections
 
+
 @dataclass
 class PaliGemmaTrainer(DetectionTargetModel):
-    def __init__(self, model_id = "google/paligemma-3b-pt-224"):
+    def __init__(self, model_id="google/paligemma-3b-pt-224"):
         device = DEVICE
         print(device)
         cache_dir = "./paligemma"
@@ -100,7 +108,25 @@ class PaliGemmaTrainer(DetectionTargetModel):
         self.device = device
 
     def predict(self, input: str, confidence=0.5) -> sv.Detections:
-        pass
+        image = load_image(input)
+
+        tokens = self.processor(
+            text=["detect"],
+            images=[image],
+            return_tensors="pt",
+            padding="longest",
+        )
+        tokens = tokens.to(self.device)
+
+        with torch.no_grad():
+            response = self.model.generate(**tokens)
+
+        detections = sv.from_lmm(
+            "paligemma", response, image.size, self.ontology.classes
+        )
+        detections = detections[detections.confidence > confidence]
+
+        return detections
 
     def train(self, dataset):
         def collate_fn(examples):
@@ -114,7 +140,6 @@ class PaliGemmaTrainer(DetectionTargetModel):
                 images=images,
                 return_tensors="pt",
                 padding="longest",
-
             )
             tokens = tokens.to(self.device)
             return tokens
@@ -122,20 +147,14 @@ class PaliGemmaTrainer(DetectionTargetModel):
         config = LoraConfig(
             r=12,
             lora_alpha=12,
-            target_modules=[
-                "q_proj",
-                "o_proj",
-                "k_proj",
-                "v_proj",
-                "linear"
-            ],
+            target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "linear"],
             task_type="CAUSAL_LM",
             lora_dropout=0.05,
             bias="none",
             inference_mode=False,
             use_rslora=True,
             init_lora_weights="gaussian",
-            revision="float16"
+            revision="float16",
         )
         peft_model = get_peft_model(self.model, config).to(self.device).train().cuda()
         peft_model.print_trainable_parameters()
@@ -151,9 +170,9 @@ class PaliGemmaTrainer(DetectionTargetModel):
         with torch.amp.autocast("cuda", torch.float16):
             lora_layers = filter(lambda p: p.requires_grad, peft_model.parameters())
             optimizer = optim.SGD(lora_layers, lr=LEARNING_RATE)
-            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                            NUM_EPOCHS * TRAIN_STEPS + 1,
-                                                            eta_min=LEARNING_RATE / 10)
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer, NUM_EPOCHS * TRAIN_STEPS + 1, eta_min=LEARNING_RATE / 10
+            )
             for epoch in tqdm(range(NUM_EPOCHS), desc="EPOCHS"):
                 train_dataset.shuffle()
                 iterator = iter(train_dataset)
