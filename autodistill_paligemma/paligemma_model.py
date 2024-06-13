@@ -66,17 +66,20 @@ class PaliGemma(DetectionBaseModel):
 
         self.ontology = ontology
 
-    def predict(self, input: str, confidence: int = 0.5) -> sv.Detections:
+    def predict(self, input: str, confidence: int = 0.1) -> sv.Detections:
         image = load_image(input)
+        height, width, channels = image.shape
 
-        prompt = f"detect " + ";".join(self.ontology.classes)
+        prompt = f"detect " + ";".join(self.ontology.classes())
 
         response = self.model.infer(image, prompt=prompt)[0]
 
-        detections = sv.from_lmm(
-            "paligemma", response, image.size, self.ontology.classes
+        print(self.ontology.classes(), response.response)
+
+        detections = sv.Detections.from_lmm(
+            sv.LMM.PALIGEMMA, response.response, resolution_wh=(width, height), classes=self.ontology.classes()
         )
-        detections = detections[detections.confidence > confidence]
+        # detections = detections[detections.confidence > confidence]
 
         return detections
 
@@ -85,7 +88,6 @@ class PaliGemma(DetectionBaseModel):
 class PaliGemmaTrainer(DetectionTargetModel):
     def __init__(self, model_id="google/paligemma-3b-pt-224"):
         device = DEVICE
-        print(device)
         cache_dir = "./paligemma"
 
         if not os.environ.get("HF_ACCESS_TOKEN"):
@@ -121,8 +123,8 @@ class PaliGemmaTrainer(DetectionTargetModel):
         with torch.no_grad():
             response = self.model.generate(**tokens)
 
-        detections = sv.from_lmm(
-            "paligemma", response, image.size, self.ontology.classes
+        detections = sv.Detections.from_lmm(
+            "paligemma", response, image.size, self.ontology.classes()
         )
         detections = detections[detections.confidence > confidence]
 
